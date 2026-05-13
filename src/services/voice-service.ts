@@ -1,8 +1,5 @@
 import type { VoiceCommand } from '../domain/types';
 
-type CommandCallback = (command: VoiceCommand) => void;
-type StatusCallback = (status: VoiceStatus) => void;
-
 export type VoiceStatus =
   | { type: 'idle' }
   | { type: 'listening' }
@@ -10,50 +7,44 @@ export type VoiceStatus =
   | { type: 'error'; message: string }
   | { type: 'unavailable' };
 
-const COMMAND_MAP: [RegExp, VoiceCommand][] = [
-  [/a\s*plu(s|s)?/i, 'a_plus'],
-  [/a\s*pi[ùu]/i, 'a_plus'],
-  [/a\s*up/i, 'a_plus'],
-  [/a\s*\+1/i, 'a_plus'],
+type CommandCallback = (command: VoiceCommand) => void;
+type StatusCallback = (status: VoiceStatus) => void;
 
-  [/b\s*plu(s|s)?/i, 'b_plus'],
-  [/b\s*pi[ùu]/i, 'b_plus'],
-  [/b\s*up/i, 'b_plus'],
-  [/b\s*\+1/i, 'b_plus'],
-
-  [/a\s*meno/i, 'a_minus'],
-  [/a\s*minus/i, 'a_minus'],
-  [/a\s*down/i, 'a_minus'],
-  [/a\s*-1/i, 'a_minus'],
-
-  [/b\s*meno/i, 'b_minus'],
-  [/b\s*minus/i, 'b_minus'],
-  [/b\s*down/i, 'b_minus'],
-  [/b\s*-1/i, 'b_minus'],
-
-  [/\bundo\b/i, 'undo'],
-  [/annulla/i, 'undo'],
-  [/indietro/i, 'undo'],
+const COMMANDS: [RegExp, VoiceCommand][] = [
+  [/\b(a|eh|ay|ah)\s*(plus|píu|piu|più|up|\+1|one|1)\b/i, 'a_plus'],
+  [/\b(b|bee|be)\s*(plus|píu|piu|più|up|\+1|one|1)\b/i, 'b_plus'],
+  [/\b(a|eh|ay|ah)\s*(minus|meno|down|dow|-1|\-1)\b/i, 'a_minus'],
+  [/\b(b|bee|be)\s*(minus|meno|down|dow|-1|\-1)\b/i, 'b_minus'],
+  [/\b(undo|annulla|indietro|oops|back|stop)\b/i, 'undo'],
 ];
 
-export class VoiceService {
+export const COMMAND_LABELS: Record<VoiceCommand, string> = {
+  a_plus: 'A +1',
+  b_plus: 'B +1',
+  a_minus: 'A -1',
+  b_minus: 'B -1',
+  undo: 'Undo',
+};
+
+class VoiceService {
   private recognition: SpeechRecognition | null = null;
   private running = false;
   private onCommand: CommandCallback | null = null;
   private onStatus: StatusCallback | null = null;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
   private errorCount = 0;
 
   init(
     onCommand: CommandCallback,
-    onStatus?: StatusCallback
+    onStatus: StatusCallback
   ): boolean {
     this.onCommand = onCommand;
-    this.onStatus = onStatus ?? null;
+    this.onStatus = onStatus;
 
     const Recognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) {
-      this.onStatus?.({ type: 'unavailable' });
+      this.onStatus({ type: 'unavailable' });
       return false;
     }
 
@@ -61,18 +52,20 @@ export class VoiceService {
       this.recognition = new Recognition();
       this.recognition.continuous = true;
       this.recognition.interimResults = true;
-      this.recognition.lang = 'it-IT';
+      this.recognition.lang = 'en-US';
 
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
         for (let i = event.results.length - 1; i >= 0; i--) {
           const result = event.results[i];
           if (!result.isFinal) continue;
-          const transcript = result[0].transcript.trim().toLowerCase();
-          for (const [pattern, command] of COMMAND_MAP) {
-            if (pattern.test(transcript)) {
-              this.onStatus?.({ type: 'command', command });
-              this.onCommand?.(command);
+          const t = result[0].transcript.trim().toLowerCase();
+          console.log('[Voice] heard:', t, 'conf:', result[0].confidence.toFixed(2));
+
+          for (const [pattern, cmd] of COMMANDS) {
+            if (pattern.test(t)) {
               this.errorCount = 0;
+              this.onCommand?.(cmd);
+              this.onStatus?.({ type: 'command', command: cmd });
               return;
             }
           }
@@ -80,45 +73,38 @@ export class VoiceService {
       };
 
       this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.warn('[Voice] Error:', event.error);
+        console.warn('[Voice] error:', event.error);
         this.errorCount++;
 
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          this.onStatus?.({
-            type: 'error',
-            message: 'Microfono non consentito. Abilita il permesso nelle impostazioni del browser.',
-          });
           this.running = false;
+          this.onStatus?.({ type: 'error', message: 'Permesso microfono negato' });
           return;
         }
 
-        if (event.error === 'no-speech' || event.error === 'aborted') {
+        if (event.error === 'aborted') {
           this.errorCount = 0;
-        }
-
-        if (this.errorCount > 5) {
-          this.onStatus?.({
-            type: 'error',
-            message: 'Troppi errori. Riavvia la pagina o controlla il microfono.',
-          });
-          this.running = false;
           return;
         }
 
-        if (this.running) {
-          setTimeout(() => this.start(), 300);
+        if (this.errorCount > 10) {
+          this.running = false;
+          this.onStatus?.({ type: 'error', message: 'Troppi errori, riavviare' });
+          return;
         }
+
+        this.scheduleRestart();
       };
 
       this.recognition.onend = () => {
         if (this.running) {
-          setTimeout(() => this.start(), 100);
+          this.scheduleRestart();
         }
       };
 
       return true;
     } catch {
-      this.onStatus?.({ type: 'unavailable' });
+      this.onStatus({ type: 'unavailable' });
       return false;
     }
   }
@@ -139,18 +125,39 @@ export class VoiceService {
   stop() {
     this.running = false;
     this.errorCount = 0;
+    this.clearRestart();
     this.onStatus?.({ type: 'idle' });
     try {
       this.recognition?.stop();
     } catch { /* ignore */ }
   }
 
+  isRunning(): boolean {
+    return this.running;
+  }
+
   isAvailable(): boolean {
     return !!this.recognition;
   }
 
-  isRunning(): boolean {
-    return this.running;
+  private scheduleRestart() {
+    this.clearRestart();
+    this.restartTimer = setTimeout(() => {
+      if (!this.running || !this.recognition) return;
+      try {
+        this.recognition.start();
+      } catch {
+        this.running = false;
+        this.onStatus?.({ type: 'unavailable' });
+      }
+    }, 200);
+  }
+
+  private clearRestart() {
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
   }
 }
 

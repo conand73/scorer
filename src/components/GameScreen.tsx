@@ -3,14 +3,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useMatchStore } from '../stores/match-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { PlayerHalf } from './PlayerHalf';
+import { VoiceControl } from './VoiceControl';
 import { AudioService } from '../services/audio-service';
 import { PersistenceService } from '../services/persistence-service';
-import { useVoiceCommands } from '../hooks/use-voice-commands';
 import { useWakeLock } from '../hooks/use-wake-lock';
 import { useVibration } from '../hooks/use-vibration';
 import { useKeyboard } from '../hooks/use-keyboard';
 import type { VoiceCommand, Page } from '../domain/types';
-import type { VoiceStatus } from '../services/voice-service';
 
 interface GameScreenProps {
   onNavigate: (page: Page) => void;
@@ -47,8 +46,6 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
   const vibrate = useVibration();
   const [showMenu, setShowMenu] = useState(false);
   const [flashPlayer, setFlashPlayer] = useState<'A' | 'B' | null>(null);
-  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({ type: 'idle' });
   const prevServerRef = useRef(match?.server);
   const prevScoreRef = useRef(match ? `${match.sets[match.currentSet]?.score.A}-${match.sets[match.currentSet]?.score.B}` : '0-0');
 
@@ -132,12 +129,6 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
     if (!match || match.winner) return;
     if (settings.audioConfirmation) AudioService.voiceCommand();
 
-    const labels: Record<VoiceCommand, string> = {
-      a_plus: 'A +1', b_plus: 'B +1', a_minus: 'A -1', b_minus: 'B -1', undo: 'Undo',
-    };
-    setVoiceFeedback(labels[cmd]);
-    setTimeout(() => setVoiceFeedback(null), 800);
-
     switch (cmd) {
       case 'a_plus': increment('A'); break;
       case 'b_plus': increment('B'); break;
@@ -147,7 +138,7 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
     }
   }, [match, increment, decrement, undo, settings.audioConfirmation, settings.preventNegativeScore]);
 
-  useVoiceCommands(settings.enableVoiceCommands, handleVoiceCommand, setVoiceStatus);
+
 
   // Keyboard shortcuts
   useKeyboard({
@@ -228,35 +219,7 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
               Menu
             </button>
 
-            {settings.enableVoiceCommands && (
-              <div className="flex items-center gap-1.5 ml-2">
-                {voiceStatus.type === 'listening' && (
-                  <motion.span
-                    animate={{ opacity: [0.4, 1, 0.4] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                    className="text-accent text-xs"
-                    title="Microfono attivo"
-                  >
-                    🎤
-                  </motion.span>
-                )}
-                {voiceStatus.type === 'command' && (
-                  <span className="text-accent text-xs font-bold animate-pulse">
-                    🎯
-                  </span>
-                )}
-                {voiceStatus.type === 'error' && (
-                  <span className="text-red-400 text-xs" title={voiceStatus.message}>
-                    🎤✕
-                  </span>
-                )}
-                {voiceStatus.type === 'unavailable' && (
-                  <span className="text-white/20 text-xs" title="Riconoscimento vocale non disponibile">
-                    🎤—
-                  </span>
-                )}
-              </div>
-            )}
+            <VoiceControl enabled={settings.enableVoiceCommands} onCommand={handleVoiceCommand} />
           </div>
         </div>
       )}
@@ -290,20 +253,6 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
             >
               Settings
             </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Voice feedback */}
-      <AnimatePresence>
-        {voiceFeedback && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-black/80 text-white px-6 py-3 rounded-2xl text-2xl font-bold"
-          >
-            {voiceFeedback}
           </motion.div>
         )}
       </AnimatePresence>
