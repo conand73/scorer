@@ -26,6 +26,8 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
   const isSetPoint = useMatchStore((s) => s.isSetPoint);
   const isMatchPoint = useMatchStore((s) => s.isMatchPoint);
   const canUndo = useMatchStore((s) => s.canUndo);
+  const canPlayerUndo = useMatchStore((s) => s.canPlayerUndo);
+  const lastActionPlayer = useMatchStore((s) => s.lastActionPlayer);
   const resetMatch = useMatchStore((s) => s.resetMatch);
 
   const settings = useSettingsStore((s) => ({
@@ -205,14 +207,6 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
             )}
 
             <button
-              onClick={() => undo()}
-              disabled={!canUndo()}
-              className="text-white/40 hover:text-white/80 disabled:opacity-20 text-sm px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors disabled:cursor-not-allowed"
-            >
-              Undo
-            </button>
-
-            <button
               onClick={() => setShowMenu(!showMenu)}
               className="text-white/40 hover:text-white/80 text-sm px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
@@ -293,6 +287,8 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
             animationsEnabled={settings.animationsEnabled}
             onIncrement={() => handleIncrement('A')}
             onDecrement={() => handleDecrement('A')}
+            canUndo={canPlayerUndo('A')}
+            onUndo={() => undo()}
             onTap={() => handleTap('A')}
           />
         </div>
@@ -311,6 +307,8 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
             animationsEnabled={settings.animationsEnabled}
             onIncrement={() => handleIncrement('B')}
             onDecrement={() => handleDecrement('B')}
+            canUndo={canPlayerUndo('B')}
+            onUndo={() => undo()}
             onTap={() => handleTap('B')}
           />
         </div>

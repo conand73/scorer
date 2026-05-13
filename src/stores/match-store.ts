@@ -6,6 +6,7 @@ interface MatchStore {
   match: MatchState | null;
   snapshots: SnapshotEntry[];
   summary: ReturnType<typeof getMatchSummary> | null;
+  lastActionPlayer: PlayerId | null;
 
   startMatch: (config: MatchConfig, playerA: PlayerConfig, playerB: PlayerConfig) => void;
   increment: (player: PlayerId) => void;
@@ -18,6 +19,7 @@ interface MatchStore {
   isSetPoint: () => boolean;
   isMatchPoint: () => boolean;
   canUndo: () => boolean;
+  canPlayerUndo: (player: PlayerId) => boolean;
 }
 
 function pushSnapshot(state: MatchStore['match'], snapshots: SnapshotEntry[], desc: string): SnapshotEntry[] {
@@ -37,10 +39,11 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   match: null,
   snapshots: [],
   summary: null,
+  lastActionPlayer: null,
 
   startMatch: (config, playerA, playerB) => {
     const match = createMatch(config, playerA, playerB);
-    set({ match, snapshots: [], summary: null });
+    set({ match, snapshots: [], summary: null, lastActionPlayer: null });
   },
 
   increment: (player) => {
@@ -53,6 +56,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       match: newState,
       snapshots: newSnapshots,
       summary: newState.endTime ? getMatchSummary(newState) : null,
+      lastActionPlayer: player,
     });
   },
 
@@ -62,7 +66,12 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
     const { state: newState, events } = decrementScore(match, player, preventNegative);
     if (events.length === 0) return;
     const newSnapshots = pushSnapshot(match, snapshots, `-1 ${player}`);
-    set({ match: newState, snapshots: newSnapshots, summary: null });
+    set({
+      match: newState,
+      snapshots: newSnapshots,
+      summary: null,
+      lastActionPlayer: player,
+    });
   },
 
   undo: () => {
@@ -73,6 +82,7 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       match: last.state,
       snapshots: snapshots.slice(0, -1),
       summary: null,
+      lastActionPlayer: null,
     });
   },
 
@@ -96,11 +106,11 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
   },
 
   resetMatch: () => {
-    set({ match: null, snapshots: [], summary: null });
+    set({ match: null, snapshots: [], summary: null, lastActionPlayer: null });
   },
 
   restoreMatch: (match) => {
-    set({ match: structuredClone(match), snapshots: [], summary: null });
+    set({ match: structuredClone(match), snapshots: [], summary: null, lastActionPlayer: null });
   },
 
   isDeuce: () => {
@@ -147,5 +157,10 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
 
   canUndo: () => {
     return get().snapshots.length > 0;
+  },
+
+  canPlayerUndo: (player) => {
+    const { snapshots, lastActionPlayer } = get();
+    return snapshots.length > 0 && lastActionPlayer === player;
   },
 }));

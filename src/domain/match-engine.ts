@@ -183,6 +183,20 @@ export function decrementScore(
     next.endTime = null;
   }
 
+  // Recalculate server after score change
+  const firstServer = next.currentSet % 2 === 0
+    ? (next.config.firstServer === 'random' ? next.server : next.config.firstServer as PlayerId)
+    : oppositePlayer(next.config.firstServer === 'random' ? oppositePlayer(next.server) : next.config.firstServer as PlayerId);
+
+  const actualFirstServer: PlayerId =
+    next.config.firstServer === 'A' || next.config.firstServer === 'B'
+      ? (next.currentSet % 2 === 0
+        ? next.config.firstServer as PlayerId
+        : oppositePlayer(next.config.firstServer as PlayerId))
+      : (next.currentSet % 2 === 0 ? next.server : oppositePlayer(next.server));
+
+  next.server = determineServer(set.score, actualFirstServer, next.config.pointsPerSet);
+
   events.push({
     id: eventId(),
     type: 'point',

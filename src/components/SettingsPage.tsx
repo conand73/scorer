@@ -134,18 +134,21 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
   );
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-surface">
-      <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => onNavigate('start')}
-            className="text-white/40 hover:text-white/80 text-sm px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
-          >
-            ← Back
-          </button>
-          <h1 className="text-lg font-bold text-white">Settings</h1>
-        </div>
+    <div className="h-full w-full bg-surface flex flex-col min-h-0">
+      {/* Fixed header */}
+      <div className="flex items-center gap-4 px-4 py-4 flex-shrink-0 border-b border-white/5">
+        <button
+          onClick={() => onNavigate('start')}
+          className="text-white/40 hover:text-white/80 text-sm px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+        >
+          ← Back
+        </button>
+        <h1 className="text-lg font-bold text-white">Settings</h1>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="max-w-2xl mx-auto px-4 py-4 pb-8">
 
         {/* Players */}
         <Section title="Players">
@@ -355,6 +358,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
           Scorer v1.0.0
         </div>
       </div>
+    </div>
     </div>
   );
 }

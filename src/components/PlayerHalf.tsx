@@ -16,9 +16,11 @@ interface PlayerHalfProps {
   blindMode: boolean;
   giantNumbers: boolean;
   animationsEnabled: boolean;
+  canUndo: boolean;
   onIncrement: () => void;
   onDecrement: () => void;
   onTap: () => void;
+  onUndo: () => void;
 }
 
 export function PlayerHalf({
@@ -33,9 +35,11 @@ export function PlayerHalf({
   blindMode,
   giantNumbers,
   animationsEnabled,
+  canUndo,
   onIncrement,
   onDecrement,
   onTap,
+  onUndo,
 }: PlayerHalfProps) {
   const startY = useRef(0);
   const startX = useRef(0);
@@ -167,6 +171,15 @@ export function PlayerHalf({
             </div>
           ))}
         </div>
+      )}
+
+      {canUndo && !blindMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onUndo(); }}
+          className="mt-2 text-xs text-white/30 hover:text-white/60 px-3 py-1 rounded-full border border-white/10 hover:border-white/30 transition-colors"
+        >
+          Undo
+        </button>
       )}
 
       {blindMode && (
