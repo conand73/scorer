@@ -41,6 +41,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: '/scorer/index.html',
+        navigateFallbackAllowlist: [/^\/scorer\//],
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/.*/i,

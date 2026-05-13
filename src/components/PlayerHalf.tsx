@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { PlayerId, SetScore } from '../domain/types';
 import { ScoreDisplay } from './ScoreDisplay';
+import { hexToRgba } from '../utils/color';
 
 interface PlayerHalfProps {
   player: PlayerId;
@@ -97,13 +98,7 @@ export function PlayerHalf({
 
   const setsWon = sets.filter(s => s.winner === player).length;
 
-  const bgColor = isServing
-    ? `color-mix(in srgb, ${color} 30%, #0f0f1a)`
-    : '#0f0f1a';
-
-  const highlightBorder = isServing
-    ? `2px solid ${color}`
-    : '2px solid transparent';
+  const bgColor = isServing ? hexToRgba(color, 0.25) : '#0f0f1a';
 
   return (
     <motion.div
@@ -111,14 +106,12 @@ export function PlayerHalf({
         ${blindMode ? 'gap-4' : 'gap-2'}
         ${isWinner ? 'z-10' : ''}`}
       style={{
-        backgroundColor: isServing ? `color-mix(in srgb, ${color} 25%, #0f0f1a)` : '#0f0f1a',
+        backgroundColor: bgColor,
         borderRight: player === 'A' ? '1px solid rgba(255,255,255,0.06)' : 'none',
         touchAction: 'none',
       }}
       animate={{
-        backgroundColor: isServing
-          ? `color-mix(in srgb, ${color} 25%, #0f0f1a)`
-          : '#0f0f1a',
+        backgroundColor: bgColor,
       }}
       transition={animationsEnabled ? { duration: 0.3 } : { duration: 0 }}
       onPointerDown={handlePointerDown}

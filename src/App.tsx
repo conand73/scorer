@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { GameScreen } from './components/GameScreen';
 import { StartScreen } from './components/StartScreen';
 import { SettingsPage } from './components/SettingsPage';
@@ -69,42 +70,44 @@ export default function App() {
   }
 
   return (
-    <div className="h-full w-full overflow-hidden bg-surface">
-      <AnimatePresence mode="wait">
-        {page === 'start' && (
-          <motion.div
-            key="start"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="h-full w-full"
-          >
-            <StartScreen onNavigate={navigate} />
-          </motion.div>
-        )}
-        {page === 'game' && (
-          <motion.div
-            key="game"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="h-full w-full"
-          >
-            <GameScreen onNavigate={navigate} />
-          </motion.div>
-        )}
-        {page === 'settings' && (
-          <motion.div
-            key="settings"
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            className="h-full w-full"
-          >
-            <SettingsPage onNavigate={navigate} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <ErrorBoundary>
+      <div className="h-full w-full overflow-hidden bg-surface">
+        <AnimatePresence mode="wait">
+          {page === 'start' && (
+            <motion.div
+              key="start"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full w-full"
+            >
+              <StartScreen onNavigate={navigate} />
+            </motion.div>
+          )}
+          {page === 'game' && (
+            <motion.div
+              key="game"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full w-full"
+            >
+              <GameScreen onNavigate={navigate} />
+            </motion.div>
+          )}
+          {page === 'settings' && (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="h-full w-full"
+            >
+              <SettingsPage onNavigate={navigate} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </ErrorBoundary>
   );
 }
