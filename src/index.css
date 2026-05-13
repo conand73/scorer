@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    @apply m-0 h-full w-full overflow-hidden;
+  }
+
+  body {
+    @apply bg-surface text-white overscroll-none;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  :root {
+    --player-a-color: #2563eb;
+    --player-a-bright: #3b82f6;
+    --player-b-color: #dc2626;
+    --player-b-bright: #ef4444;
+  }
+
+  .blind-mode {
+    --player-a-bright: #60a5fa;
+    --player-b-bright: #f87171;
+  }
+}
+
+@layer utilities {
+  .touch-none {
+    touch-action: none;
+  }
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+}
