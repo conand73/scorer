@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/*.svg'],
+      includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
         name: 'Scorer - Table Tennis Score Tracker',
         short_name: 'Scorer',
@@ -16,12 +16,28 @@ export default defineConfig({
         theme_color: '#0f0f1a',
         background_color: '#0f0f1a',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'fullscreen', 'standalone'],
         orientation: 'landscape',
+        scope: '/scorer/',
         start_url: '/scorer/',
+        id: '/scorer/',
         icons: [
-          { src: 'icons/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
-          { src: 'icons/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' },
+          {
+            src: 'icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
         ],
+        screenshots: [],
+        categories: ['sports', 'utilities'],
+        prefer_related_applications: false,
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
