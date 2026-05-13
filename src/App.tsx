@@ -46,17 +46,13 @@ export default function App() {
     document.documentElement.classList.toggle('dark', true);
   }, []);
 
-  // Prevent default touch behaviors
+  // Prevent pinch-zoom and pull-to-refresh (but let pointer events through)
   useEffect(() => {
-    const prevent = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault();
+    const preventPinch = (e: TouchEvent) => {
+      if (e.touches.length > 1) e.preventDefault();
     };
-    document.addEventListener('touchmove', prevent, { passive: false });
-    document.addEventListener('gesturestart', prevent as any, { passive: false });
-    return () => {
-      document.removeEventListener('touchmove', prevent);
-      document.removeEventListener('gesturestart', prevent as any);
-    };
+    document.addEventListener('touchmove', preventPinch, { passive: false });
+    return () => document.removeEventListener('touchmove', preventPinch);
   }, []);
 
   const navigate = useCallback((p: Page) => setPage(p), []);

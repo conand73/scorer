@@ -10,6 +10,7 @@ import { useWakeLock } from '../hooks/use-wake-lock';
 import { useVibration } from '../hooks/use-vibration';
 import { useKeyboard } from '../hooks/use-keyboard';
 import type { VoiceCommand, Page } from '../domain/types';
+import type { VoiceStatus } from '../services/voice-service';
 
 interface GameScreenProps {
   onNavigate: (page: Page) => void;
@@ -47,6 +48,7 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [flashPlayer, setFlashPlayer] = useState<'A' | 'B' | null>(null);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({ type: 'idle' });
   const prevServerRef = useRef(match?.server);
   const prevScoreRef = useRef(match ? `${match.sets[match.currentSet]?.score.A}-${match.sets[match.currentSet]?.score.B}` : '0-0');
 
@@ -145,7 +147,7 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
     }
   }, [match, increment, decrement, undo, settings.audioConfirmation, settings.preventNegativeScore]);
 
-  useVoiceCommands(settings.enableVoiceCommands, handleVoiceCommand);
+  useVoiceCommands(settings.enableVoiceCommands, handleVoiceCommand, setVoiceStatus);
 
   // Keyboard shortcuts
   useKeyboard({
@@ -225,6 +227,36 @@ export function GameScreen({ onNavigate }: GameScreenProps) {
             >
               Menu
             </button>
+
+            {settings.enableVoiceCommands && (
+              <div className="flex items-center gap-1.5 ml-2">
+                {voiceStatus.type === 'listening' && (
+                  <motion.span
+                    animate={{ opacity: [0.4, 1, 0.4] }}
+                    transition={{ repeat: Infinity, duration: 1.5 }}
+                    className="text-accent text-xs"
+                    title="Microfono attivo"
+                  >
+                    🎤
+                  </motion.span>
+                )}
+                {voiceStatus.type === 'command' && (
+                  <span className="text-accent text-xs font-bold animate-pulse">
+                    🎯
+                  </span>
+                )}
+                {voiceStatus.type === 'error' && (
+                  <span className="text-red-400 text-xs" title={voiceStatus.message}>
+                    🎤✕
+                  </span>
+                )}
+                {voiceStatus.type === 'unavailable' && (
+                  <span className="text-white/20 text-xs" title="Riconoscimento vocale non disponibile">
+                    🎤—
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
