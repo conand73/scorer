@@ -13,29 +13,41 @@ export function oppositePlayer(p: PlayerId): PlayerId {
   return p === 'A' ? 'B' : 'A';
 }
 
+/** Returns who serves for the NEXT point after `currentScore` has been reached. */
 export function determineServer(
   currentScore: Score,
-  firstServer: PlayerId,
+  firstServerOfSet: PlayerId,
   pointsPerSet: number
 ): PlayerId {
   const totalPoints = currentScore.A + currentScore.B;
-  const isDeuce = currentScore.A >= pointsPerSet - 1 && currentScore.B >= pointsPerSet - 1
-    && Math.abs(currentScore.A - currentScore.B) <= 1
-    && currentScore.A >= 10 && currentScore.B >= 10;
+  const inDeuce =
+    currentScore.A >= pointsPerSet - 1 &&
+    currentScore.B >= pointsPerSet - 1 &&
+    Math.abs(currentScore.A - currentScore.B) <= 1;
 
-  if (isDeuce) {
-    return totalPoints % 2 === 0 ? firstServer : oppositePlayer(firstServer);
+  if (inDeuce) {
+    // Deuce: switch serve every point
+    return totalPoints % 2 === 0 ? firstServerOfSet : oppositePlayer(firstServerOfSet);
   }
 
+  // Normal: switch serve every 2 points
   return Math.floor(totalPoints / 2) % 2 === 0
-    ? firstServer
-    : oppositePlayer(firstServer);
+    ? firstServerOfSet
+    : oppositePlayer(firstServerOfSet);
+}
+
+/** Who serves first in the Nth set (0-indexed). Alternates each set. */
+export function firstServerOfSet(
+  matchFirstServer: PlayerId,
+  setIndex: number
+): PlayerId {
+  return setIndex % 2 === 0 ? matchFirstServer : oppositePlayer(matchFirstServer);
 }
 
 export function isSetOver(score: Score, pointsPerSet: number, winByTwo: boolean): boolean {
   if (winByTwo) {
-    return (score.A >= pointsPerSet || score.B >= pointsPerSet)
-      && Math.abs(score.A - score.B) >= 2;
+    return (score.A >= pointsPerSet || score.B >= pointsPerSet) &&
+      Math.abs(score.A - score.B) >= 2;
   }
   return score.A >= pointsPerSet || score.B >= pointsPerSet;
 }
@@ -61,7 +73,8 @@ export function createMatch(
   playerA: { name: string; color: string },
   playerB: { name: string; color: string }
 ): MatchState {
-  const firstServer: PlayerId =
+  // Resolve 'random' to a concrete player immediately
+  const resolvedFirstServer: PlayerId =
     config.firstServer === 'random'
       ? (Math.random() < 0.5 ? 'A' : 'B')
       : config.firstServer;
@@ -72,11 +85,14 @@ export function createMatch(
     playerB: { name: playerB.name, color: playerB.color },
     sets: [createSet(1)],
     currentSet: 0,
-    server: firstServer,
+    server: resolvedFirstServer,
     winner: null,
     startTime: Date.now(),
     endTime: null,
-    config,
+    config: {
+      ...config,
+      firstServer: resolvedFirstServer, // now always 'A' or 'B'
+    },
   };
 }
 
@@ -85,12 +101,10 @@ export function incrementScore(
   player: PlayerId
 ): { state: MatchState; events: GameEvent[] } {
   const events: GameEvent[] = [];
-
   if (state.winner) return { state, events };
 
   const next: MatchState = structuredClone(state);
   const set = next.sets[next.currentSet];
-
   if (!set || set.winner) return { state, events };
 
   set.score[player]++;
@@ -126,35 +140,16 @@ export function incrementScore(
         player: matchWinner,
       });
     } else {
+      // Advance to next set
       next.sets.push(createSet(set.number + 1));
       next.currentSet = set.number;
-
-      const firstServerThisSet = next.config.autoServiceSwitch
-        ? (next.currentSet % 2 === 0
-          ? next.server
-          : oppositePlayer(next.server))
-        : next.server;
-      next.server = firstServerThisSet;
+      // First server of new set alternates
+      next.server = firstServerOfSet(next.config.firstServer as PlayerId, set.number);
     }
   } else {
-    const firstServerThisSet = next.config.autoServiceSwitch
-      ? (next.currentSet % 2 === 0
-        ? (next.config.firstServer === 'random' ? next.server : next.config.firstServer)
-        : oppositePlayer(next.config.firstServer === 'random' ? next.server : next.config.firstServer))
-      : next.config.firstServer;
-
-    const actualFirstServer = typeof firstServerThisSet === 'string' && (firstServerThisSet === 'A' || firstServerThisSet === 'B')
-      ? firstServerThisSet as PlayerId
-      : (next.config.firstServer === 'A' || next.config.firstServer === 'B' ? next.config.firstServer : 'A');
-
-    if (next.config.firstServer === 'random') {
-      next.server = determineServer(set.score, next.server as PlayerId, next.config.pointsPerSet);
-    } else {
-      const fs = next.currentSet % 2 === 0
-        ? next.config.firstServer as PlayerId
-        : oppositePlayer(next.config.firstServer as PlayerId);
-      next.server = determineServer(set.score, fs, next.config.pointsPerSet);
-    }
+    // Normal serve rotation within the set
+    const fs = firstServerOfSet(next.config.firstServer as PlayerId, next.currentSet);
+    next.server = determineServer(set.score, fs, next.config.pointsPerSet);
   }
 
   return { state: next, events };
@@ -178,24 +173,15 @@ export function decrementScore(
   set.score[player]--;
 
   if (set.winner) {
+    // Re-open the set
     set.winner = null;
     next.winner = null;
     next.endTime = null;
   }
 
-  // Recalculate server after score change
-  const firstServer = next.currentSet % 2 === 0
-    ? (next.config.firstServer === 'random' ? next.server : next.config.firstServer as PlayerId)
-    : oppositePlayer(next.config.firstServer === 'random' ? oppositePlayer(next.server) : next.config.firstServer as PlayerId);
-
-  const actualFirstServer: PlayerId =
-    next.config.firstServer === 'A' || next.config.firstServer === 'B'
-      ? (next.currentSet % 2 === 0
-        ? next.config.firstServer as PlayerId
-        : oppositePlayer(next.config.firstServer as PlayerId))
-      : (next.currentSet % 2 === 0 ? next.server : oppositePlayer(next.server));
-
-  next.server = determineServer(set.score, actualFirstServer, next.config.pointsPerSet);
+  // Recalculate serve based on new score
+  const fs = firstServerOfSet(next.config.firstServer as PlayerId, next.currentSet);
+  next.server = determineServer(set.score, fs, next.config.pointsPerSet);
 
   events.push({
     id: eventId(),
