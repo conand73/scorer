@@ -118,7 +118,12 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
     if (!match) return false;
     const set = match.sets[match.currentSet];
     if (!set) return false;
-    return set.score.A >= 10 && set.score.B >= 10;
+    const { pointsPerSet } = match.config;
+    return (
+      set.score.A >= pointsPerSet - 1 &&
+      set.score.B >= pointsPerSet - 1 &&
+      Math.abs(set.score.A - set.score.B) <= 1
+    );
   },
 
   isSetPoint: () => {

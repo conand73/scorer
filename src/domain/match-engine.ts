@@ -26,11 +26,9 @@ export function determineServer(
     Math.abs(currentScore.A - currentScore.B) <= 1;
 
   if (inDeuce) {
-    // Deuce: switch serve every point
     return totalPoints % 2 === 0 ? firstServerOfSet : oppositePlayer(firstServerOfSet);
   }
 
-  // Normal: switch serve every 2 points
   return Math.floor(totalPoints / 2) % 2 === 0
     ? firstServerOfSet
     : oppositePlayer(firstServerOfSet);
@@ -73,7 +71,6 @@ export function createMatch(
   playerA: { name: string; color: string },
   playerB: { name: string; color: string }
 ): MatchState {
-  // Resolve 'random' to a concrete player immediately
   const resolvedFirstServer: PlayerId =
     config.firstServer === 'random'
       ? (Math.random() < 0.5 ? 'A' : 'B')
@@ -91,9 +88,17 @@ export function createMatch(
     endTime: null,
     config: {
       ...config,
-      firstServer: resolvedFirstServer, // now always 'A' or 'B'
+      firstServer: resolvedFirstServer,
     },
   };
+}
+
+function recalcServer(state: MatchState): PlayerId {
+  if (!state.config.autoServiceSwitch) return state.server;
+  const set = state.sets[state.currentSet];
+  if (!set) return state.server;
+  const fs = firstServerOfSet(state.config.firstServer as PlayerId, state.currentSet);
+  return determineServer(set.score, fs, state.config.pointsPerSet);
 }
 
 export function incrementScore(
@@ -140,16 +145,14 @@ export function incrementScore(
         player: matchWinner,
       });
     } else {
-      // Advance to next set
       next.sets.push(createSet(set.number + 1));
       next.currentSet = set.number;
-      // First server of new set alternates
-      next.server = firstServerOfSet(next.config.firstServer as PlayerId, set.number);
+      if (next.config.autoServiceSwitch) {
+        next.server = firstServerOfSet(next.config.firstServer as PlayerId, set.number);
+      }
     }
   } else {
-    // Normal serve rotation within the set
-    const fs = firstServerOfSet(next.config.firstServer as PlayerId, next.currentSet);
-    next.server = determineServer(set.score, fs, next.config.pointsPerSet);
+    next.server = recalcServer(next);
   }
 
   return { state: next, events };
@@ -161,27 +164,48 @@ export function decrementScore(
   preventNegative: boolean
 ): { state: MatchState; events: GameEvent[] } {
   const events: GameEvent[] = [];
-  if (state.winner) return { state, events };
 
   const next: MatchState = structuredClone(state);
-  const set = next.sets[next.currentSet];
+
+  // If the point being undone comes from a previous set (current set is empty
+  // 0-0 with no winner and was auto-created by a set-winning point), roll back.
+  // This handles both set-winning and match-winning points.
+  if (
+    next.currentSet > 0 &&
+    next.sets[next.currentSet] &&
+    next.sets[next.currentSet].score.A === 0 &&
+    next.sets[next.currentSet].score.B === 0 &&
+    !next.sets[next.currentSet].winner
+  ) {
+    next.sets.pop();
+    next.currentSet--;
+  }
+
+  let set = next.sets[next.currentSet];
   if (!set) return { state, events };
 
-  if (preventNegative && set.score[player] <= 0) return { state, events };
-  if (set.score[player] <= 0) return { state, events };
+  // Re-open match if it was ended
+  if (next.winner) {
+    next.winner = null;
+    next.endTime = null;
+  }
 
-  set.score[player]--;
-
+  // Re-open set if it was won
   if (set.winner) {
-    // Re-open the set
     set.winner = null;
     next.winner = null;
     next.endTime = null;
   }
 
-  // Recalculate serve based on new score
-  const fs = firstServerOfSet(next.config.firstServer as PlayerId, next.currentSet);
-  next.server = determineServer(set.score, fs, next.config.pointsPerSet);
+  if (preventNegative && set.score[player] <= 0) return { state, events };
+
+  set.score[player]--;
+
+  // If after decrement the current set becomes 0-0 with no winner,
+  // and we had rolled back from an auto-created set, the previous
+  // set's winner was already cleared above. Nothing else to do.
+
+  next.server = recalcServer(next);
 
   events.push({
     id: eventId(),

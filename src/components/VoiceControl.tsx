@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceService, type VoiceStatus, COMMAND_LABELS } from '../services/voice-service';
 import type { VoiceCommand } from '../domain/types';
@@ -12,6 +12,43 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
   const [status, setStatus] = useState<VoiceStatus>({ type: 'idle' });
   const [available, setAvailable] = useState(true);
   const initialized = useRef(false);
+  const commandCount = useRef(0);
+  const statusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearStatusTimeout = useCallback(() => {
+    if (statusTimeout.current) {
+      clearTimeout(statusTimeout.current);
+      statusTimeout.current = null;
+    }
+  }, []);
+
+  // Keep callbacks in refs so voiceService can always call the latest version
+  const onCommandRef = useRef(onCommand);
+  onCommandRef.current = onCommand;
+
+  const handleStatus = useCallback((s: VoiceStatus) => {
+    setStatus(s);
+    clearStatusTimeout();
+
+    // Auto-dismiss notification states after a delay
+    if (s.type === 'command' || s.type === 'heard' || s.type === 'error') {
+      statusTimeout.current = setTimeout(() => {
+        if (voiceService.isRunning()) {
+          setStatus({ type: 'listening' });
+        } else {
+          setStatus({ type: 'idle' });
+        }
+      }, s.type === 'command' ? 1500 : 2500);
+    }
+  }, [clearStatusTimeout]);
+
+  const handleCommand = useCallback((cmd: VoiceCommand) => {
+    onCommandRef.current(cmd);
+  }, []);
+
+  useEffect(() => {
+    return () => clearStatusTimeout();
+  }, [clearStatusTimeout]);
 
   useEffect(() => {
     if (!enabled) {
@@ -19,31 +56,30 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
       setStatus({ type: 'idle' });
       initialized.current = false;
       setAvailable(true);
+      clearStatusTimeout();
       return;
     }
 
-    if (initialized.current) return;
+    if (initialized.current) {
+      // Already initialized – just update callbacks
+      voiceService.setCommandCallback(handleCommand);
+      voiceService.setStatusCallback(handleStatus);
+      return;
+    }
+
     initialized.current = true;
 
-    const ok = voiceService.init(
-      (cmd) => onCommand(cmd),
-      (s) => {
-        setStatus(s);
-        if (s.type === 'unavailable') setAvailable(false);
-      }
-    );
+    const ok = voiceService.init(handleCommand, handleStatus);
 
     if (!ok) {
       setAvailable(false);
     }
-  }, [enabled, onCommand]);
+  }, [enabled, handleCommand, handleStatus, clearStatusTimeout]);
 
   const handleTap = () => {
     if (status.type === 'listening') {
-      // Tap to stop
       voiceService.stop();
     } else {
-      // Tap to start (this is the user gesture Chrome needs)
       voiceService.start();
     }
   };
@@ -52,7 +88,7 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
 
   if (!available) {
     return (
-      <div className="text-white/20 text-xs px-2" title="Riconoscimento vocale non supportato">
+      <div className="text-white/40 text-xs px-2" title="Riconoscimento vocale non supportato">
         🎤—
       </div>
     );
@@ -63,6 +99,9 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
   const isHeard = status.type === 'heard';
   const isError = status.type === 'error';
   const showHeard = isHeard || isCommand;
+
+  // Generate stable key for AnimatePresence
+  if (isCommand) commandCount.current++;
 
   return (
     <div className="relative flex items-center gap-1">
@@ -84,7 +123,6 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
             : 'Tocca per attivare microfono'
         }
       >
-        {/* Pulsing ring when listening */}
         {isListening && (
           <motion.span
             className="absolute inset-0 rounded-lg border border-accent/50"
@@ -105,16 +143,15 @@ export function VoiceControl({ enabled, onCommand }: VoiceControlProps) {
             : isHeard
             ? status.text.slice(0, 15)
             : isError
-            ? (status as any).message?.slice(0, 20) ?? 'Errore'
+            ? status.message.slice(0, 20)
             : 'Off'}
         </span>
       </button>
 
-      {/* Floating feedback for recognized commands */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isCommand && (
           <motion.div
-            key={status.command + Date.now()}
+            key={`cmd-${commandCount.current}`}
             initial={{ opacity: 1, y: 0, scale: 1 }}
             animate={{ opacity: 0, y: -24, scale: 0.8 }}
             exit={{ opacity: 0 }}
