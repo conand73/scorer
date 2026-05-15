@@ -191,7 +191,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
           <SettingRow label="Best Of">
             <Select
               value={settings.bestOf}
-              options={[1, 3, 5, 7].map((n) => ({ label: `${n}`, value: n }))}
+              options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({ label: `${n}`, value: n }))}
               onChange={(v) => update('bestOf', parseInt(v))}
             />
           </SettingRow>
